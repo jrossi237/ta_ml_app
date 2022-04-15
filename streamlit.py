@@ -7,7 +7,6 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from pathlib import Path
 import hvplot.pandas
-import matplotlib.pyplot as plt
 from sklearn import svm
 from sklearn.preprocessing import StandardScaler
 from pandas.tseries.offsets import DateOffset
