@@ -77,7 +77,7 @@ finta_map = {
     'Finite Volume Element': 'FVE',
     'Volume Flow Indicator': 'VFI',
     'Moving Standard deviation': 'MSD',
-    'Schaff Trend Cycle': 'STC',
-    'Mark Whistlers WAVE PM': 'WAVEPM'
+    'Schaff Trend Cycle': 'STC'
+
 }
 

@@ -21,9 +21,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from functools import reduce
 from finta_map import finta_map
+import datetime
 
 flipped_finta_map = {v: k for k, v in finta_map.items()}
-
 
 # The wide option will take up the entire screen.
 st.set_page_config(page_title="Technical Analysis Machine Learning",layout="wide")
@@ -69,7 +69,12 @@ for bad_func in bad_funcs:
 
 def getYahooStockData(ticker, years=10):
     """
-        Gets data from yahoo stock api. 
+    Gets data from yahoo stock api. 
+    Args:
+        ticker: stock ticker
+        years: number of years of data to pull
+    Return:
+        Dataframe of stock data
     """
     end_date = pd.to_datetime('today').normalize()
     start_date =  end_date - DateOffset(years=years)
@@ -83,6 +88,14 @@ def getYahooStockData(ticker, years=10):
     return result_df
 
 def prepDf(df):
+    """
+    Does some basic prep work on the dataframe
+    Args:
+        df: dataframe to prep
+    Return:
+        dataframe which has been prepped
+    """
+    
     df["Actual Returns"] = df["close"].pct_change()
     df = df.dropna()
     # Initialize the new Signal column
@@ -96,6 +109,14 @@ def prepDf(df):
     return df
 
 def makeSignalsDf(ohlcv_df):
+    """
+    makes the signal df
+
+    Args:
+        ohlcv_df: basic ohlcv styled df
+    Return:
+        dataframe that is date indexed
+    """
     signals_df = ohlcv_df.copy()
     signals_df = signals_df.drop(columns=["open", "high", "low", "close", "volume"])
     return signals_df
@@ -109,6 +130,14 @@ def executeFintaFunctions(df, ohlcv_df, ta_functions):
     lot of calculations. Some of these, like DYMI take like 6 seconds to calculate.
     This utilizes a cache variable which is really important in terms of speeding this
     up.
+
+    Args:
+        df: a signals df put all of the new cols on
+        ohlcv_df: the standard ohlov df
+        ta_fuctions: a list of finta functions to call.
+    Return:
+        dataframe with newly appended finta data.
+
     """
     
     for ta_function in ta_functions:
@@ -138,6 +167,15 @@ def executeFintaFunctions(df, ohlcv_df, ta_functions):
     return (df, indicators)
 
 def createScaledTestTrainData(df, indicators):
+    """
+    created scaled training and test data.
+
+    Args:
+        df: data frame
+        indicators: all of the indicator data to scale
+    Return:
+        tuple(X_train_scaled, X_test_scaled, y_train, y_test)
+    """
     X = df[indicators].shift().dropna()
     y = df['Signal']
     y=y.loc[X.index]
@@ -153,28 +191,23 @@ def createScaledTestTrainData(df, indicators):
     return X_train_scaled, X_test_scaled, y_train, y_test
 
 def executeSVMModel(X_train_scaled, X_test_scaled, y_train, y_test, signals_df ):
-    svm_model = svm.SVC()
-    svm_model = svm_model.fit(X_train_scaled, y_train)
-    svm_pred = svm_model.predict(X_test_scaled)
-    svm_testing_report = classification_report(y_test, svm_pred)
+    """
+    executs the svm model on the data provided
 
-    predictions_df = pd.DataFrame(index=y_test.index)
-    # Add the SVM model predictions to the DataFrame
-    predictions_df['Predicted'] = svm_pred
-
-    # Add the actual returns to the DataFrame
-    predictions_df['Actual Returns'] = signals_df['Actual Returns']
-
-    # Add the strategy returns to the DataFrame
-    predictions_df['Strategy Returns'] = (predictions_df['Actual Returns'] * predictions_df['Predicted'])
-    return predictions_df, svm_testing_report
-
-def executeRandomForest(X_train_scaled, X_test_scaled, y_train, y_test, signals_df):
-    #rf_model = RandomForestClassifier(n_estimators=100)
-    rf_model = RandomForestClassifier()
-    rf_model = rf_model.fit(X_train_scaled, y_train)
-    pred = rf_model.predict(X_test_scaled)
-    report = classification_report(y_test, pred)
+    Args:
+        X_train_scaled: scaled training dataset
+        X_test_scaled: scaled test dataset
+        y_train: scaned training dataset
+        y_test: scaled test dataset
+        signals_df: signals df for the 'actual returns' col and index
+    Return:
+        tuple(predictions_df, testing_report)
+    """
+    
+    model = svm.SVC()
+    model = model.fit(X_train_scaled, y_train)
+    pred = model.predict(X_test_scaled)
+    testing_report = classification_report(y_test, pred)
 
     predictions_df = pd.DataFrame(index=y_test.index)
     # Add the SVM model predictions to the DataFrame
@@ -185,9 +218,52 @@ def executeRandomForest(X_train_scaled, X_test_scaled, y_train, y_test, signals_
 
     # Add the strategy returns to the DataFrame
     predictions_df['Strategy Returns'] = (predictions_df['Actual Returns'] * predictions_df['Predicted'])
-    return predictions_df, report
+    return predictions_df, testing_report
+
+def executeRandomForest(X_train_scaled, X_test_scaled, y_train, y_test, signals_df):
+    """
+    executs the random forest on the data provided
+
+    Args:
+        X_train_scaled: scaled training dataset
+        X_test_scaled: scaled test dataset
+        y_train: scaned training dataset
+        y_test: scaled test dataset
+        signals_df: signals df for the 'actual returns' col and index
+    Return:
+        tuple(predictions_df, testing_report)
+    """
+    #rf_model = RandomForestClassifier(n_estimators=100)
+    rf_model = RandomForestClassifier()
+    rf_model = rf_model.fit(X_train_scaled, y_train)
+    pred = rf_model.predict(X_test_scaled)
+    testing_report = classification_report(y_test, pred)
+
+    predictions_df = pd.DataFrame(index=y_test.index)
+    # Add the SVM model predictions to the DataFrame
+    predictions_df['Predicted'] = pred
+
+    # Add the actual returns to the DataFrame
+    predictions_df['Actual Returns'] = signals_df['Actual Returns']
+
+    # Add the strategy returns to the DataFrame
+    predictions_df['Strategy Returns'] = (predictions_df['Actual Returns'] * predictions_df['Predicted'])
+    return predictions_df, testing_report
 
 def executeNaiveBayes(X_train_scaled, X_test_scaled, y_train, y_test, signals_df):
+    """
+    executs the naive bayes on the data provided
+
+    Args:
+        X_train_scaled: scaled training dataset
+        X_test_scaled: scaled test dataset
+        y_train: scaned training dataset
+        y_test: scaled test dataset
+        signals_df: signals df for the 'actual returns' col and index
+    Return:
+        tuple(predictions_df, report)
+    """
+    
     model = GaussianNB()
     model = model.fit(X_train_scaled, y_train)
     pred = model.predict(X_test_scaled)
@@ -204,15 +280,21 @@ def executeNaiveBayes(X_train_scaled, X_test_scaled, y_train, y_test, signals_df
     predictions_df['Strategy Returns'] = (predictions_df['Actual Returns'] * predictions_df['Predicted'])
     return predictions_df, report
 
-def execute(ticker, indicators_to_use=[]):
+def execute(ticker, indicators_to_use=[], years=10):
     """
     This is the main data gathering for this app. It will call other functions
     to assemble a main dataframe which can be used in different ways.
-
+    Args:
+        ticker: ticker to use
+        indicators_to_use: indicators to use
+        years: # of years of data to base all of this on.
+    Return:
+        None
+  
     """
 
     # Getting the stock data
-    ohlcv_df = getYahooStockData(ticker.upper())
+    ohlcv_df = getYahooStockData(ticker.upper(), years)
 
     #prepping the stock data
     ohlcv_df = prepDf(ohlcv_df)
@@ -223,7 +305,7 @@ def execute(ticker, indicators_to_use=[]):
         ta_functions = indicators_to_use
 
     names = [flipped_finta_map[n] for n in ta_functions]
-    st.write("Executing on:", ", ".join(names))
+    st.write("Analyzing:", ", ".join(names))
 
     #this is generating all of the permutations of the ta_functions. 
     ta_func_permutations = []
@@ -231,7 +313,7 @@ def execute(ticker, indicators_to_use=[]):
         ta_func_permutations.extend(itertools.combinations(ta_functions, k+1))
 
         # this is prepping the final results df
-    results_df = pd.DataFrame(columns=["Variation", "SVM Final Returns", "RF Final Returns", "NB Final Returns"])
+    results_df = pd.DataFrame(columns=["Variation", "SVM Returns", "Random Forest Returns", "Naive Bayes Returns"])
 
     # all of the results dfs should be stored in this map for future reference
     resulting_df_map = {}
@@ -280,29 +362,39 @@ def execute(ticker, indicators_to_use=[]):
 
         svm_final_df.rename(columns={'Strategy Returns': 'SVM Returns'}, inplace=True)
         rf_final_df.rename(columns={'Strategy Returns': 'Random Forest Returns'}, inplace=True)
-        nb_final_df.rename(columns={'Strategy Returns': 'Naive Baines Returns'}, inplace=True)        
+        nb_final_df.rename(columns={'Strategy Returns': 'Naive Bayes Returns'}, inplace=True)        
         
 
         dfs_to_merge = [svm_final_df, rf_final_df, nb_final_df]
         merged_df = reduce(lambda left,right: pd.merge(left,right,left_index=True, right_index=True), dfs_to_merge)
 
         #resulting_df_map[perm_key] = {'svm':svm_final_df,'rf': rf_final_df,'nb': nb_final_df }
-        resulting_df_map[perm_key] = merged_df
+        #resulting_df_map[perm_key] = merged_df
+
+        _key = ",".join([flipped_finta_map[n] for n in ta_func_permutation])
         
-        results_df.loc[-1] = [perm_key, svm_final_return, rf_final_return, nb_final_return]
+        resulting_df_map[_key] = merged_df        
+        
+        results_df.loc[-1] = [_key, svm_final_return, rf_final_return, nb_final_return]
 
         results_df.index = results_df.index + 1
 
         results_df = results_df.sort_index()
 
-    results_df = results_df.sort_values(by=["SVM Final Returns", "RF Final Returns", "NB Final Returns"], ascending=False)
+    results_df = results_df.sort_values(by=["SVM Returns", "Random Forest Returns", "Naive Bayes Returns"], ascending=False)
 
     st.write("Top 10 Models:")
-    st.write(results_df.head(10))
+
+    hide_table_row_index = """<style>tbody th {display:none} .blank {display:none} </style> """
+
+    # Inject CSS with Markdown
+    st.markdown(hide_table_row_index, unsafe_allow_html=True)    
+   
+    st.table(results_df.head(10))
 
     
     for perm_key in results_df["Variation"][:10]:
-        st.write(f"Results for {perm_key}")
+        st.write(f"Results for: {perm_key}")
         st.line_chart(resulting_df_map[perm_key])
         #st.write(resulting_df_map[perm_key]['svm'].hvplot(legend=True, title=f"SVM Results for {perm_key}") + resulting_df_map[perm_key]['rf'].hvplot(legend=True, title=f"Random Forest Results for {perm_key}") + resulting_df_map[perm_key]['nb'].hvplot(legend=True, title=f"Naive Bayes Results for {perm_key}"))
     
@@ -331,15 +423,23 @@ def main():
     named_selected_indicators = st.sidebar.multiselect("TA Indicators to use:", valid_indicator_names)
 
     selected_indicators = []
+
+    # It would be interesting to play with date ranges. 
+    # selected_years = st.sidebar.slider("Number of years of data", min_value=1, max_value=10, value=10)
+    selected_years = 10
+    
     for named_indicator in named_selected_indicators:
         selected_indicators.append(valid_indicators[named_indicator])
 
     if st.sidebar.button("Run"):
-        execute(selected_stock, selected_indicators)
+        execute(selected_stock, selected_indicators, selected_years)
     st.sidebar.markdown("---")
     st.sidebar.write("This will randomly choose 5 indicators")
     if st.sidebar.button("I'm feeling lucky"):
-        execute(selected_stock)
+        with st.spinner('Executing...'):
+            execute(selected_stock)
+        
+        
     
         
 main()  
