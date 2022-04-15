@@ -1,9 +1,7 @@
 import os
 import requests
 import pandas as pd
-from dotenv import load_dotenv
-import alpaca_trade_api as tradeapi
-#%matplotlib inline
+
 import streamlit as st
 from sklearn.model_selection import train_test_split
 import numpy as np
