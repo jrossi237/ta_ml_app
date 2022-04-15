@@ -4,4 +4,4 @@ numpy
 pandas
 requests==2.22.0
 scikit_learn==1.0.2
-yfinance==0.1.70
+yfinance
