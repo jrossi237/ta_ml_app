@@ -179,7 +179,7 @@ def createScaledTestTrainData(df, indicators):
     X = df[indicators].shift().dropna()
     y = df['Signal']
     y=y.loc[X.index]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.60, shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.40, shuffle=False)
     scaler = StandardScaler()
 
     # Apply the scaler model to fit the X-train data
@@ -299,20 +299,20 @@ def execute(ticker, indicators_to_use=[], years=10):
     #prepping the stock data
     ohlcv_df = prepDf(ohlcv_df)
 
-
     ta_functions = random.choices(all_ta_functions, k=5)
     if indicators_to_use:
         ta_functions = indicators_to_use
 
     names = [flipped_finta_map[n] for n in ta_functions]
-    st.write("Analyzing:", ", ".join(names))
 
     #this is generating all of the permutations of the ta_functions. 
     ta_func_permutations = []
     for k in range(len(ta_functions)):
         ta_func_permutations.extend(itertools.combinations(ta_functions, k+1))
 
-        # this is prepping the final results df
+    st.write(f"Testing {len(ta_func_permutations)} different permutations of these indicators: ", ", ".join(names))
+    
+    # this is prepping the final results df    
     results_df = pd.DataFrame(columns=["Variation", "SVM Returns", "Random Forest Returns", "Naive Bayes Returns"])
 
     # all of the results dfs should be stored in this map for future reference
@@ -322,21 +322,14 @@ def execute(ticker, indicators_to_use=[], years=10):
     # take a long time. having a cache really speeds it up
     finta_cache = {}
 
+    signals_df = makeSignalsDf(ohlcv_df)
 
-
+    actual_returns_for_period = None
+    
     for ta_func_permutation in ta_func_permutations:
 
         perm_key = ",".join(ta_func_permutation)
-        print("Executing:", perm_key)
-
-
-        # FIXME!!! it's lame that i have to remake the signals_df every time. it's important 
-        # to start off with a fresh  copy of signals for every iteration, otherwise all of 
-        # the col will be appended to the same DF thought this loop. in theory, you should 
-        # be able to do a df.copy() herea, but for some odd reason that was blowing up. 
-        # re-generating  the signals every time to get around this.
-
-        signals_df = makeSignalsDf(ohlcv_df)
+        #print("Executing:", perm_key)
 
         finta_signals_df, indicators = executeFintaFunctions(signals_df, ohlcv_df, ta_func_permutation)
        
@@ -345,15 +338,13 @@ def execute(ticker, indicators_to_use=[], years=10):
         svm_predictions_df, svm_testing_report = executeSVMModel(X_train_scaled, X_test_scaled, y_train, y_test, signals_df)
         rf_predictions_df, rf_testing_report = executeRandomForest(X_train_scaled, X_test_scaled, y_train, y_test, signals_df)
         nb_predictions_df, nb_testing_report = executeNaiveBayes(X_train_scaled, X_test_scaled, y_train, y_test,signals_df)
-    
+
         svm_final_df = (1 + svm_predictions_df[['Actual Returns', 'Strategy Returns']]).cumprod()
         rf_final_df = (1 + rf_predictions_df[['Actual Returns', 'Strategy Returns']]).cumprod()    
         nb_final_df = (1 + nb_predictions_df[['Actual Returns', 'Strategy Returns']]).cumprod()
-
+        
         rf_final_df.drop(columns=['Actual Returns'], inplace=True)
         nb_final_df.drop(columns=['Actual Returns'], inplace=True)
-
-        #display(svm_final_df.hvplot())
 
         svm_final_return = svm_final_df.iloc[-1]["Strategy Returns"]
         rf_final_return = rf_final_df.iloc[-1]["Strategy Returns"]
@@ -380,25 +371,23 @@ def execute(ticker, indicators_to_use=[], years=10):
         results_df.index = results_df.index + 1
 
         results_df = results_df.sort_index()
+        actual_returns_for_period = svm_final_df.iloc[-1]["Actual Returns"]
 
     results_df = results_df.sort_values(by=["SVM Returns", "Random Forest Returns", "Naive Bayes Returns"], ascending=False)
 
+    st.write(f"Return for {ticker} over the testing period is {round(actual_returns_for_period,4)}")
     st.write("Top 10 Models:")
 
     hide_table_row_index = """<style>tbody th {display:none} .blank {display:none} </style> """
 
     # Inject CSS with Markdown
     st.markdown(hide_table_row_index, unsafe_allow_html=True)    
-   
-    st.table(results_df.head(10))
 
+    st.table(results_df.head(10))
     
     for perm_key in results_df["Variation"][:10]:
         st.write(f"Results for: {perm_key}")
         st.line_chart(resulting_df_map[perm_key])
-        #st.write(resulting_df_map[perm_key]['svm'].hvplot(legend=True, title=f"SVM Results for {perm_key}") + resulting_df_map[perm_key]['rf'].hvplot(legend=True, title=f"Random Forest Results for {perm_key}") + resulting_df_map[perm_key]['nb'].hvplot(legend=True, title=f"Naive Bayes Results for {perm_key}"))
-    
-    st.write("Executing main body!")
    
             
 def main():
@@ -417,7 +406,6 @@ def main():
     valid_indicators = {v: k for k, v in flipped_finta_map.items()}
 
     valid_indicator_names = valid_indicators.keys()
-
     
     selected_stock = st.sidebar.text_input("Chose a stock:", value="spy")
     named_selected_indicators = st.sidebar.multiselect("TA Indicators to use:", valid_indicator_names)
@@ -439,21 +427,4 @@ def main():
         with st.spinner('Executing...'):
             execute(selected_stock)
         
-        
-    
-        
-main()  
-
-
-
-  
-    
-
-    
-   
-
-    
-
-
-
-
+main()
