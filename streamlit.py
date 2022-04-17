@@ -15,6 +15,7 @@ from sklearn.preprocessing import PowerTransformer
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.preprocessing import RobustScaler
 from sklearn.preprocessing import FunctionTransformer
+from sklearn.preprocessing import MaxAbsScaler
 
 from pandas.tseries.offsets import DateOffset
 from sklearn.metrics import classification_report
@@ -212,6 +213,8 @@ def createScaledTestTrainData(df, indicators, scaler_name):
         scaler = StandardScaler()
     elif scaler_name == 'MinMaxScaler':
         scaler = MinMaxScaler(feature_range=(-1,1))
+    elif scaler_name == 'MaxAbsScaler':
+        scaler = MaxAbsScaler()
     elif scaler_name == 'PowerTransformer':
         scaler = PowerTransformer()
     elif scaler_name == 'QuantileTransformer':
