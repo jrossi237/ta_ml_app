@@ -175,7 +175,11 @@ def executeFintaFunctions(df, ohlcv_df, ta_functions):
                 ta_result = finta_func(ohlcv_df)
 
                 finta_cache[ta_function] = ta_result
-        
+
+            # finta functions results vary in terms of data type. Sometimes, it will return
+            # a single column of data stored in a panada series. Other times, like with Bollinger
+            # bands, it will return three seperate columns of data inside a panda dataframe.
+            # this next bit detects what finta returns, and then adds the columns accordingly.
             if isinstance(ta_result, pd.Series):
                 df[ta_function] = ta_result
             elif isinstance(ta_result, pd.DataFrame):
