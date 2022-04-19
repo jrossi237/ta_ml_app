@@ -10,7 +10,7 @@ import hvplot.pandas
 from sklearn import svm
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
-
+import matplotlib.pyplot as plt
 from sklearn.preprocessing import PowerTransformer
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.preprocessing import RobustScaler
@@ -31,6 +31,11 @@ from functools import reduce
 from finta_map import finta_map
 import datetime
 from collections import Counter
+import plotly.figure_factory as ff
+import seaborn as sns
+import string
+
+
 
 flipped_finta_map = {v: k for k, v in finta_map.items()}
 
@@ -256,12 +261,23 @@ def executeSVMModel(X_train_scaled, X_test_scaled, y_train, y_test, signals_df )
     pred = model.predict(X_test_scaled)
     testing_report = classification_report(y_test, pred)
 
-    #st.write(X_test_scaled)
+
+    query_params = st.experimental_get_query_params()
     #if len(np.unique(pred)) == 1:
-    #st.write(">>> hit pred count:", pred)
-    #st.write(Counter(pred).keys())
-    #st.write(Counter(pred).values())    
-    
+    if 'debug' in query_params:
+        ### HERE
+        st.write("num of unique predictions (should be 2):::", len(np.unique(pred)))
+        fig = plt.figure(figsize=(10, 4))
+
+        num_rows, num_cols = X_test_scaled.shape
+        letter_list = list(string.ascii_lowercase)
+        cols = letter_list[: num_cols]
+        _df = pd.DataFrame(X_test_scaled, columns = cols)
+        #sns.lineplot(data = _df)
+        sns.distplot(_df)        
+        
+        st.pyplot(fig)
+        
     
     predictions_df = pd.DataFrame(index=y_test.index)
     # Add the SVM model predictions to the DataFrame
@@ -418,7 +434,7 @@ def execute(ticker, scaler, indicators_to_use=[], years=10, rerun=False):
 
         dfs_to_merge = [svm_final_df, rf_final_df, nb_final_df]
         merged_df = reduce(lambda left,right: pd.merge(left,right,left_index=True, right_index=True), dfs_to_merge)
-
+       
         _key = ",".join([flipped_finta_map[n] for n in ta_func_permutation])
 
         # now that all of the results are in a single dataframe, we're storing the merged_df in a map so that
